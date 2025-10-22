@@ -23,7 +23,13 @@ def _():
 
     import polars as pl
     import matplotlib.pyplot as plt
-    return duckdb, mo, plt
+    return (duckdb,)
+
+
+@app.cell
+def _(conn):
+    conn.query("DESCRIBE 'data/bview/**/*.parquet'")
+    return
 
 
 @app.cell
@@ -32,51 +38,100 @@ def _(duckdb):
     # execute the query on one core in a Marimo notebook.
     conn = duckdb.connect()
 
-    conn.query(f"""
-    CREATE TEMPORARY TABLE freqs AS
-        SELECT count(*) update_count, operation, prefix, origin_as, year, month
-        FROM './data/updates/**/*.parquet'
-        GROUP BY ALL;
+    conn.query("""
+    CREATE TEMPORARY TABLE tier_one (asn VARCHAR);
+    INSERT INTO tier_one VALUES
+        (701),
+        (174),
+        (12956),
+        (6939),
+        (3257),
+        (6461),
+        (6762),
+        (6453),
+        (1299),
+        (6830),
+        (2914),
+        (3491),
+        (5511),
+        (3356),
+        (3320),
+        (7018);
     """)
+
     return (conn,)
 
 
 @app.cell
-def _(conn, mo):
-    mo.output.append(conn.sql("DESCRIBE freqs"))
-
-    df = conn.sql("""
+def _(conn):
+    conn.query("""
+    WITH prefixes_transiting AS (
     SELECT
-    update_count, prefix, operation, origin_as,
-    SUM (update_count) OVER (ORDER BY update_count) AS cumulative_sum,
-    SUM (update_count) OVER (ORDER BY update_count) / SUM (update_count) OVER () AS cdf
-    FROM freqs
-    ORDER BY 1 DESC
-    """).df ()
-    df[0:3]
-    return (df,)
+        DISTINCT prefix,
+        CASE WHEN ':' in prefix THEN 'ipv6' ELSE 'ipv4' END AS afi,
+        asn
+    FROM tier_one
+    LEFT JOIN 'data/bview/**/*.parquet' ris
+    ON asn IN ris.as_path
+    )
+    SELECT count(*), asn, afi from prefixes_transiting GROUP BY ALL
+    """)
+    return
 
 
 @app.cell
-def _(df, plt):
-    plt.figure(figsize=(10, 6), dpi=100)
+def _(conn):
+    conn.query("""
+    CREATE TEMPORARY TABLE tier_one (asn VARCHAR);
+    INSERT INTO tier_one VALUES
+        (701),
+        (174),
+        (12956),
+        (6939),
+        (3257),
+        (6461),
+        (6762),
+        (6453),
+        (1299),
+        (6830),
+        (2914),
+        (3491),
+        (5511),
+        (3356),
+        (3320),
+        (7018);
+    
 
-    # Filter data by operation type
-    df_a = df[df['operation'] == 'A']
-    df_w = df[df['operation'] == 'W']
-
-    # Plot both lines with ColorBrewer colours
-    plt.step(df_a['update_count'], df_a['cdf'], where='post', 
-             linestyle='-', color='#1f77b4', label='A')
-    plt.step(df_w['update_count'], df_w['cdf'], where='post', 
-             linestyle='-', color='#ff7f0e', label='W')
-
-    plt.xlabel('Update Count')
-    plt.ylabel('CDF')
-    plt.title('Number of BP updates seen (RIPE RIS, 2025-10-10) per prefix (CDF)')
-    plt.legend(loc='lower right')
-    plt.grid(True)
-    plt.show()
+    WITH path_tier_ones AS (
+        -- For each route, find all tier-one ASNs in its path
+        SELECT 
+            b.*,
+            array_agg(DISTINCT t.asn) AS tier_one_asns,
+            COUNT(DISTINCT t.asn) AS tier_one_count
+        FROM 
+            'data/bview/**/*.parquet' b,
+            UNNEST(b.as_path) AS path_asn
+        LEFT JOIN 
+            tier_one t ON t.asn = path_asn
+        WHERE 
+            t.asn IS NOT NULL
+        GROUP BY ALL
+    )
+    SELECT 
+        ts,
+        prefix,
+        origin_as,
+        as_path,
+        peer_asn,
+        tier_one_asns AS tier_ones_in_path,
+        tier_one_count
+    FROM 
+        path_tier_ones
+    WHERE 
+        tier_one_count = 2
+    ORDER BY 
+        ts DESC, prefix;
+    """)
     return
 
 
