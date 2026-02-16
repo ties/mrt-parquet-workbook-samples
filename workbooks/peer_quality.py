@@ -40,9 +40,6 @@ def _():
 
     import os
 
-    import pyarrow
-    import polars as pl
-
     return duckdb, mo, os
 
 
@@ -50,7 +47,9 @@ def _():
 def _(duckdb, os):
     conn = duckdb.connect()
 
-    PEER_MESSAGE_COUNT = os.path.expanduser("~/src/tmp/parquet/peer_message_count-2026-02-16.parquet")
+    PEER_MESSAGE_COUNT = os.path.expanduser(
+        "~/src/tmp/parquet/peer_message_count-2026-02-16.parquet"
+    )
     PEER_STATUS = os.path.expanduser("~/src/tmp/parquet/peer_status-2026-02-16.parquet")
 
     UPDATES = os.path.expanduser("~/src/tmp/parquet/updates/**/*.parquet")
@@ -65,13 +64,13 @@ def _(duckdb, os):
 
 @app.cell
 def _(conn):
-    conn.query(f"SELECT count(*), peer_ip, peer_asn from updates group by all").pl()
+    conn.query("SELECT count(*), peer_ip, peer_asn from updates group by all").pl()
     return
 
 
 @app.cell
 def _(conn):
-    conn.query(f"""
+    conn.query("""
     CREATE TEMPORARY TABLE peer_messages AS (
     SELECT
         peer_ip,
@@ -95,11 +94,11 @@ def _(conn):
 @app.cell(hide_code=True)
 def _(conn, mo, peer_messages):
     _df = mo.sql(
-        f"""
+        """
         --- Integrity check
         SELECT * FROM peer_messages WHERE num_state_change + num_open + num_update + num_notification + num_keepalive != total_messages;
         """,
-        engine=conn
+        engine=conn,
     )
     return
 
@@ -107,7 +106,7 @@ def _(conn, mo, peer_messages):
 @app.cell(hide_code=True)
 def _(bview, conn, mo, peer_messages):
     _df = mo.sql(
-        f"""
+        """
         --- Get the peers that have only sent status change messages during 24h
         ---
         --- or less than 24 messages total (we expect one notification every 5m by default)
@@ -117,7 +116,7 @@ def _(bview, conn, mo, peer_messages):
         SELECT * FROM peer_cnt pc LEFT JOIN peer_messages pm ON pc.peer_ip = pm.peer_ip AND pc.peer_asn = pm.peer_asn
         WHERE total_messages - num_state_change = 0 OR total_messages - num_state_change < 24
         """,
-        engine=conn
+        engine=conn,
     )
     return
 
