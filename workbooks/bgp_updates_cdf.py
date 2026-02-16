@@ -18,11 +18,8 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _():
-    import marimo as mo
     import duckdb
 
-    import polars as pl
-    import matplotlib.pyplot as plt
     return (duckdb,)
 
 
@@ -100,24 +97,24 @@ def _(conn):
         (3356),
         (3320),
         (7018);
-    
+
 
     WITH path_tier_ones AS (
         -- For each route, find all tier-one ASNs in its path
-        SELECT 
+        SELECT
             b.*,
             array_agg(DISTINCT t.asn) AS tier_one_asns,
             COUNT(DISTINCT t.asn) AS tier_one_count
-        FROM 
+        FROM
             'data/bview/**/*.parquet' b,
             UNNEST(b.as_path) AS path_asn
-        LEFT JOIN 
+        LEFT JOIN
             tier_one t ON t.asn = path_asn
-        WHERE 
+        WHERE
             t.asn IS NOT NULL
         GROUP BY ALL
     )
-    SELECT 
+    SELECT
         ts,
         prefix,
         origin_as,
@@ -125,11 +122,11 @@ def _(conn):
         peer_asn,
         tier_one_asns AS tier_ones_in_path,
         tier_one_count
-    FROM 
+    FROM
         path_tier_ones
-    WHERE 
+    WHERE
         tier_one_count = 2
-    ORDER BY 
+    ORDER BY
         ts DESC, prefix;
     """)
     return

@@ -18,11 +18,8 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _():
-    import marimo as mo
     import duckdb
 
-    import polars as pl
-    import matplotlib.pyplot as plt
     return (duckdb,)
 
 
@@ -75,7 +72,9 @@ def _(conn):
 
 @app.cell
 def _(conn):
-    conn.query("SELECT count(*), as_path FROM peerlock_violations GROUP BY ALL ORDER BY 1 DESC").df()
+    conn.query(
+        "SELECT count(*), as_path FROM peerlock_violations GROUP BY ALL ORDER BY 1 DESC"
+    ).df()
     return
 
 
